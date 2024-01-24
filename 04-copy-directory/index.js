@@ -6,26 +6,44 @@ async function copyDir() {
     const destDir = path.join(__dirname, 'files-copy');
 
     try {
-        // Create the destination directory if it doesn't exist
         await fs.mkdir(destDir, { recursive: true });
+        await clearDir(destDir);
 
-        // Read the contents of the source directory
         const files = await fs.readdir(srcDir);
 
-        // Move each file from the source to the destination
         for (const file of files) {
-            const srcPath = path.join(srcDir, file);
-            const destPath = path.join(destDir, file);
+            const [srcPath, destPath] = [path.join(srcDir, file), path.join(destDir, file)];
+            const stats = await fs.stat(srcPath);
 
-            // Use rename to move the file
-            await fs.rename(srcPath, destPath);
+            stats.isDirectory() ? await copyDirRecursive(srcPath, destPath) : await fs.copyFile(srcPath, destPath);
         }
 
-        console.log('Directory moved successfully!');
+        console.log('Directory copied successfully!');
     } catch (err) {
-        console.error('Error moving directory:', err.message);
+        console.error('Error copying directory:', err.message);
     }
 }
 
-// Call the function to move the directory
+async function copyDirRecursive(src, dest) {
+    const files = await fs.readdir(src);
+
+    for (const file of files) {
+        const [srcPath, destPath] = [path.join(src, file), path.join(dest, file)];
+        const stats = await fs.stat(srcPath);
+
+        stats.isDirectory() ? await copyDirRecursive(srcPath, destPath) : await fs.copyFile(srcPath, destPath);
+    }
+}
+
+async function clearDir(dir) {
+    const files = await fs.readdir(dir);
+
+    for (const file of files) {
+        const filePath = path.join(dir, file);
+        const stats = await fs.stat(filePath);
+
+        stats.isDirectory() ? (await clearDir(filePath), await fs.rmdir(filePath)) : await fs.unlink(filePath);
+    }
+}
+
 copyDir();
