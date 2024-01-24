@@ -10,10 +10,19 @@ async function copyDir() {
         await fs.mkdir(destDir, { recursive: true });
 
         // Read the contents of the source directory
-        const files = await fs.readdir(srcDir);
+        const files = await fs.readdir(destDir);
+
+        // Remove each file from the destination directory
+        for (const file of files) {
+            const filePath = path.join(destDir, file);
+            await fs.unlink(filePath);
+        }
+
+        // Read the contents of the source directory again
+        const newFiles = await fs.readdir(srcDir);
 
         // Copy each file from the source to the destination
-        for (const file of files) {
+        for (const file of newFiles) {
             const srcPath = path.join(srcDir, file);
             const destPath = path.join(destDir, file);
 
