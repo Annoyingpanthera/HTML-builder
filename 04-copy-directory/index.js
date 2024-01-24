@@ -10,31 +10,22 @@ async function copyDir() {
         await fs.mkdir(destDir, { recursive: true });
 
         // Read the contents of the source directory
-        const files = await fs.readdir(destDir);
+        const files = await fs.readdir(srcDir);
 
-        // Remove each file from the destination directory
+        // Move each file from the source to the destination
         for (const file of files) {
-            const filePath = path.join(destDir, file);
-            await fs.unlink(filePath);
-        }
-
-        // Read the contents of the source directory again
-        const newFiles = await fs.readdir(srcDir);
-
-        // Copy each file from the source to the destination
-        for (const file of newFiles) {
             const srcPath = path.join(srcDir, file);
             const destPath = path.join(destDir, file);
 
-            // Use copyFile for individual files
-            await fs.copyFile(srcPath, destPath);
+            // Use rename to move the file
+            await fs.rename(srcPath, destPath);
         }
 
-        console.log('Directory copied successfully!');
+        console.log('Directory moved successfully!');
     } catch (err) {
-        console.error('Error copying directory:', err.message);
+        console.error('Error moving directory:', err.message);
     }
 }
 
-// Call the function to copy the directory
+// Call the function to move the directory
 copyDir();
