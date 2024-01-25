@@ -1,4 +1,4 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
 const distDir = path.join(__dirname, 'project-dist');
@@ -10,60 +10,77 @@ const stylesDir = path.join(__dirname, 'styles');
 const indexPath = path.join(distDir, 'index.html');
 const stylePath = path.join(distDir, 'style.css');
 
-// Function to copy a directory recursively
-function copyDir(src, dst) {
-    fs.readdirSync(src, { withFileTypes: true }).forEach((file) => {
-        const filePath = path.join(src, file.name);
-        if (file.isDirectory()) {
-            fs.mkdirSync(path.join(dst, file.name), { recursive: true });
-            copyDir(filePath, path.join(dst, file.name));
-        } else {
-            fs.copyFileSync(filePath, path.join(dst, file.name));
+async function copyDir(src, dst) {
+    try {
+        await fs.mkdir(dst, { recursive: true });
+        const files = await fs.readdir(src, { withFileTypes: true });
+
+        for (const file of files) {
+            const [srcPath, destPath] = [path.join(src, file.name), path.join(dst, file.name)];
+
+            if (file.isDirectory()) await copyDir(srcPath, destPath);
+            else await fs.copyFile(srcPath, destPath);
         }
-    });
+    } catch (err) {
+        console.error('Error copying directory:', err.message);
+    }
 }
 
-// Create project-dist folder and copy assets
-fs.mkdirSync(distDir, { recursive: true });
-fs.mkdirSync(distAssetsDir, { recursive: true });
-copyDir(srcAssetsDir, distAssetsDir);
-
-// Read and process template
-let templateContent = fs.readFileSync(templatePath, 'utf-8');
-const componentFiles = fs.readdirSync(compDir, { withFileTypes: true });
-
-const promises = componentFiles.map((file) => {
-    if (file.isFile() && path.extname(file.name) === '.html') {
-        const filePath = path.join(compDir, file.name);
-        const templateName = `{{${path.basename(file.name, '.html')}}}`;
-        const componentContent = fs.readFileSync(filePath, 'utf-8');
-        templateContent = templateContent.replace(new RegExp(templateName, 'g'), componentContent);
+async function setupDistDir() {
+    try {
+        await copyDir(srcAssetsDir, distAssetsDir);
+        console.log('Assets copied successfully!');
+    } catch (err) {
+        console.error('Error setting up project-dist directory:', err.message);
     }
-});
+}
 
-// Write the modified template to index.html
-Promise.all(promises)
-    .then(() => {
-        fs.writeFileSync(indexPath, templateContent);
+async function processTemplate() {
+    try {
+        let templateContent = await fs.readFile(templatePath, 'utf-8');
+        const componentFiles = await fs.readdir(compDir, { withFileTypes: true });
+
+        await Promise.all(componentFiles.map(async (file) => {
+            if (file.isFile() && path.extname(file.name) === '.html') {
+                const filePath = path.join(compDir, file.name);
+                const templateName = `{{${path.basename(file.name, '.html')}}}`;
+                const componentContent = await fs.readFile(filePath, 'utf-8');
+                templateContent = templateContent.replace(new RegExp(templateName, 'g'), componentContent);
+            }
+        }));
+
+        await fs.writeFile(indexPath, templateContent);
         console.log('Index file created successfully!');
-    })
-    .catch((err) => {
+    } catch (err) {
         console.error('Error processing template:', err.message);
-    });
-
-// Compile styles
-const styleStream = fs.createWriteStream(stylePath);
-const styleFiles = fs.readdirSync(stylesDir, { withFileTypes: true });
-
-styleFiles.forEach((file) => {
-    if (file.isFile() && path.extname(file.name) === '.css') {
-        const filePath = path.join(stylesDir, file.name);
-        const styleContent = fs.readFileSync(filePath);
-        styleStream.write(styleContent);
     }
-});
+}
 
-// Close the style stream
-styleStream.end();
+async function compileStyles() {
+    try {
+        const styleStream = fs.createWriteStream(stylePath);
+        const styleFiles = await fs.readdir(stylesDir, { withFileTypes: true });
 
-console.log('Build completed successfully!');
+        for (const file of styleFiles) {
+            if (file.isFile() && path.extname(file.name) === '.css') {
+                const filePath = path.join(stylesDir, file.name);
+                const styleContent = await fs.readFile(filePath);
+                styleStream.write(styleContent);
+            }
+        }
+
+        styleStream.end();
+        console.log('Styles compiled successfully!');
+    } catch (err) {
+        console.error('Error compiling styles:', err.message);
+    }
+}
+
+async function build() {
+    await setupDistDir();
+    await processTemplate();
+    await compileStyles();
+    console.log('Build completed successfully!');
+}
+
+build();
